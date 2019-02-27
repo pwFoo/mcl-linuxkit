@@ -1,0 +1,27 @@
+ARG     BASE=3.9           
+FROM    alpine:$BASE AS docker
+
+ARG     DOCKER_BRANCH=stable
+ARG     DOCKER_ARCH=x86_64
+ARG     DOCKER_VERSION=18.09.1
+
+ENV     DOCKER_DL=https://download.docker.com/linux/static/$DOCKER_BRANCH/$DOCKER_ARCH/docker-$DOCKER_VERSION.tgz
+
+RUN     wget -O /docker.tgz $DOCKER_DL
+RUN     tar -xzf /docker.tgz
+
+RUN     rm -f /docker/ctr
+
+WORKDIR	/mnt
+
+RUN	mkdir -p \
+	var/lib/docker \
+	usr/bin
+
+RUN	cp -a /docker/* usr/bin/
+
+
+
+FROM    scratch
+
+COPY    --from=docker /mnt/ /

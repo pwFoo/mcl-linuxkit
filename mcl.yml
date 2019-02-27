@@ -1,0 +1,13 @@
+kernel:
+  image: pwfoo/mcl-kernel
+  cmdline: "console=tty0 console=ttyS0 console=ttyAMA0 ip=dhcp"
+init:
+  - pwfoo/mcl-rootfs
+  - pwfoo/mcl-busybox
+  - pwfoo/mcl-musl
+  - pwfoo/mcl-iptables
+  - pwfoo/mcl-rngd
+  - pwfoo/mcl-init
+  - pwfoo/mcl-ca-certificates
+  - pwfoo/mcl-cloudinit
+  - pwfoo/mcl-docker

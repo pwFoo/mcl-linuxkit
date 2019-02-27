@@ -1,0 +1,36 @@
+FROM 	alpine:3.9
+
+RUN     apk --update --no-cache add wget bc build-base gawk xorriso libelf-dev openssl-dev bison flex linux-headers perl rsync git argp-standalone gettext
+
+
+ARG     MUSL_VERSION=1.1.21
+ENV     MUSL_DL=http://www.musl-libc.org/releases/musl-$MUSL_VERSION.tar.gz
+
+ARG     BUILD=/build
+ARG     OUT=/out
+
+RUN     mkdir -p $BUILD $OUT
+
+WORKDIR $BUILD
+
+RUN     wget -O musl.tar.gz $MUSL_DL
+RUN     tar -xf musl.tar.gz
+
+WORKDIR $BUILD/musl-$MUSL_VERSION
+
+
+ARG     NUM_JOBS=2
+
+
+RUN	./configure \
+	--prefix=/usr
+
+RUN	make
+
+RUN	make DESTDIR=$OUT install
+
+
+
+FROM    scratch
+
+COPY    --from=0 /out/ /

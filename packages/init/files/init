@@ -1,0 +1,74 @@
+#!/bin/sh
+
+# shellcheck disable=SC1091
+. /etc/rc.conf
+
+export PATH="/bin:/usr/bin:/sbin:/usr/sbin"
+
+# Mount dev,proc,sys
+mount -t devtmpfs none /dev
+mount -t proc none /proc
+mount -t sysfs none /sys
+mkdir /dev/pts
+mount -t devpts none /dev/pts
+
+# mount cgroup
+(
+mount -t tmpfs -o uid=0,gid=0,mode=0755 cgroup /sys/fs/cgroup
+cd /sys/fs/cgroup || exit 1
+
+awk '!/^#/ { if ($4 == 1) print $1 }' /proc/cgroups | while IFS= read -r sys; do
+  mkdir -p "$sys"
+  if ! mountpoint -q "$sys"; then
+    if ! mount -n -t cgroup -o "$sys" cgroup "$sys"; then
+      rmdir "$sys" || true
+    fi
+  fi
+done
+)
+
+
+# Configure host name
+HOSTNAME="${HOSTNAME:-localhost}"
+echo "hostname: $HOSTNAME"
+hostname "$HOSTNAME"
+
+# Configure networking
+ip link set lo up
+ip link set eth0 up
+
+# Run cloudinit (if available)
+/usr/bin/cloudinit > /var/log/cloudinit.log &
+
+
+# Start rngd (TRNG)i
+#if [ -f /dev/hwrng ]; then
+#if [ -c /dev/hwrng ]; then
+if [ -c /dev/urandom ]; then
+#  rngd -f -r /dev/hwrng -p /var/run/rngd.pid > /var/log/rngd.log 2>&1 &
+  rngd -f -r /dev/urandom -p /var/run/rngd.pid > /var/log/rngd.log 2>&1 &
+fi
+
+
+# Start udhcpc (DHCP)
+udhcpc -f -p /var/run/udhcpc.pid > /var/log/udhcpc.log 2>&1 &
+
+
+## Start dropbear (SSHD)
+#dropbear -B -R > /var/log/dropbear.log 2>&1
+
+# Start dockerd (Containers)
+DOCKER_DATA="$(blkid | grep 'LABEL="DOCKER_DATA"' | awk -F ':' '{ print $1 }')"
+if [ "$DOCKER_DATA" ]; then
+  mkdir -p /var/lib/docker
+  mount "$DOCKER_DATA" /var/lib/docker
+fi
+DOCKER_RAMDISK=true dockerd -p /var/run/docker.pid > /var/log/docker.log 2>&1 &
+
+printf "\nBoot took %s seconds\n" "$(cut -d' ' -f1 /proc/uptime)"
+
+# shell
+while true; do
+  setsid cttyhack /bin/sh &
+  wait
+done

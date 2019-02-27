@@ -1,0 +1,64 @@
+FROM alpine:3.9
+
+RUN     apk -U add wget bc build-base gawk xorriso libelf-dev openssl-dev bison flex linux-headers perl rsync git argp-standalone gettext
+
+
+ARG     BUSYBOX_VERSION=1.29.3
+ENV     BUSYBOX_DL=http://busybox.net/downloads/busybox-$BUSYBOX_VERSION.tar.bz2
+
+ARG     BUILD=/build
+ARG     OUT=/out
+
+RUN     mkdir -p $BUILD $OUT
+
+WORKDIR $BUILD
+
+RUN     wget -O busybox.tar.bz2 $BUSYBOX_DL
+RUN     tar -xf busybox.tar.bz2
+
+WORKDIR $BUILD/busybox-$BUSYBOX_VERSION
+
+
+ARG     NUM_JOBS=2
+
+RUN     make distclean defconfig -j $NUM_JOBS
+
+COPY	files/ /
+
+RUN	sh -x /config.sh \ 
+	STATIC=y \
+        INCLUDE_SUSv2=n \
+        INSTALL_NO_USR=y \
+        PREFIX="$OUT" \
+        FEATURE_EDITING_VI=y \
+        TUNE2FS=y \
+        BOOTCHARTD=n \
+        INIT=n \
+        LINUXRC=n \
+        FEATURE_GPT_LABEL=y \
+        LPD=n \
+        LPR=n \
+        LPQ=n \
+        RUNSV=n \
+        RUNSVDIR=n \
+        SV=n \
+        SVC=n \
+        SVLOGD=n \
+        HUSH=n \
+        CHAT=n \
+        CONSPY=n \
+        RUNLEVEL=n \
+        PIPE_PROGRESS=n \
+        RUN_PARTS=n \
+        START_STOP_DAEMON=n \
+        && yes "" | make oldconfig
+
+RUN     make EXTRA_CFLAGS="-Os -s -fno-stack-protector -U_FORTIFY_SOURCE" busybox install -j $NUM_JOBS
+
+# Workaround DEST DIR ignoriert...
+RUN	cp -a ./_install/* /out/
+
+
+FROM	scratch
+
+COPY	--from=0 /out/ /

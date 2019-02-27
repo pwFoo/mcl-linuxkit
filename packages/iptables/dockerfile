@@ -1,0 +1,38 @@
+FROM 	alpine:3.9
+
+RUN     apk --update --no-cache add wget bc build-base gawk xorriso libelf-dev openssl-dev bison flex linux-headers perl rsync git argp-standalone gettext
+
+
+ARG     IPTABLES_VERSION=1.8.2
+ENV     IPTABLES_DL=https://netfilter.org/projects/iptables/files/iptables-$IPTABLES_VERSION.tar.bz2
+
+ARG     BUILD=/build
+ARG     OUT=/out
+
+RUN     mkdir -p $BUILD $OUT
+
+WORKDIR $BUILD
+
+RUN     wget -O iptables.tar.bz2 $IPTABLES_DL
+RUN     tar -xf iptables.tar.bz2
+
+WORKDIR $BUILD/iptables-$IPTABLES_VERSION
+
+
+ARG     NUM_JOBS=2
+
+
+RUN     ./configure  \
+        --prefix=/usr \
+        --enable-libipq \
+        --disable-nftables \
+        --enable-static
+
+RUN      make EXTRA_CFLAGS="-Os -s -fno-stack-protector -U_FORTIFY_SOURCE" -j $NUM_JOBS
+
+RUN      make DESTDIR=$OUT install
+
+
+FROM    scratch
+
+COPY    --from=0 /out/ /

@@ -1,0 +1,9 @@
+FROM	alpine:3.9
+
+RUN	apk --update --no-cache add \
+	ca-certificates
+
+
+FROM scratch
+
+COPY --from=0 /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
