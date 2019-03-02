@@ -31,6 +31,12 @@ RUN	apk --update --no-cache add \
 
 ARG     NUM_JOBS=2
 
+## generate all modules config
+#RUN	make mrproper allmodconfig -j $NUM_JOBS 
+#RUN	cp -a .config /tmp/allmod.config
+#RUN	grep "=m" /tmp/allmod.config > /tmp/modules.config
+
+
 # prepare clean default config 
 RUN	make mrproper defconfig kvmconfig -j $NUM_JOBS
 
@@ -48,6 +54,13 @@ RUN	sh -x /config.sh \
 	DEBUG_KERNEL=n \
 	DEFAULT_HOSTNAME=mcl
 
+## EFI (ISO9660, SR -> kernel panic sr0)
+#RUN	sh -x /config.sh \
+#	EFI_STUB=y \
+#	EFIVAR_FS=y \
+#	ISO9660_FS=y \
+#	BLK_DEV_SR=y
+
 # RNG
 RUN	sh -x /config.sh \
 	HW_RANDOM_VIRTIO=y
@@ -62,6 +75,11 @@ RUN	sh -x /config.sh \
 	VIRTIO_NET=y \
 	8139TOO=y \
 	8139CP=y
+
+# efi 
+RUN	sh -x /config.sh \
+	EFI_MIXED=y \
+	EFI_STUB=y
 
 # kernel network auto config dhcp
 RUN	sh -x /config.sh \
@@ -103,6 +121,12 @@ RUN	sh -x /config.sh \
 	BLK_DEV_DM=y \
 	DM_THIN_PROVISIONING=y \
 	OVERLAY_FS=y
+
+
+## add modules disabled and not builtin
+#RUN	sh -x /config.sh \
+#	ADDMODS \
+#	$(cat /tmp/modules.config)
 
 RUN	make \	
 	CFLAGS="-Os -s -fno-stack-protector -U_FORTIFY_SOURCE" \

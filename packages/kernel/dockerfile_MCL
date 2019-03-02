@@ -1,0 +1,16 @@
+FROM    alpine:3.9
+
+
+ARG	MCL_VERSION=v0.0.13
+
+WORKDIR /mnt
+
+RUN     wget -O kernel https://github.com/prologic/minimal-container-linux/releases/download/$MCL_VERSION/kernel.gz
+
+RUN     dd if=/dev/zero bs=1 count=10240 > kernel.tar
+
+
+
+FROM    scratch
+
+COPY    --from=0 /mnt/ /

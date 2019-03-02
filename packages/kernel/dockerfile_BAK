@@ -1,16 +1,141 @@
-FROM    alpine:3.9
+ARG	BASE=3.9
+FROM    alpine:$BASE
+
+ARG	KERNEL_VERSION=4.20.8
+
+ENV	KERNEL_DL=http://kernel.org/pub/linux/kernel/v4.x/linux-$KERNEL_VERSION.tar.xz
+
+RUN	wget -O kernel.tar.xz $KERNEL_DL
+
+RUN	tar -xf kernel.tar.xz -C /mnt
+
+WORKDIR	/mnt/linux-$KERNEL_VERSION
 
 
-ARG	MCL_VERSION=v0.0.13
+RUN	apk --update --no-cache add \
+	wget \
+	bc \
+	build-base \
+	libelf-dev \
+	openssl-dev \
+	bison \
+	flex \
+	linux-headers \
+	gettext \
+	perl \
+	rsync \
+	git \
+	argp-standalone \
+	gawk
 
-WORKDIR /mnt
 
-RUN     wget -O kernel https://github.com/prologic/minimal-container-linux/releases/download/$MCL_VERSION/kernel.gz
+ARG     NUM_JOBS=2
 
-RUN     dd if=/dev/zero bs=1 count=10240 > kernel.tar
+# generate all modules config
+RUN	make mrproper allmodconfig -j $NUM_JOBS 
+
+RUN	cp -a .config /tmp/allmod.config
+
+RUN	grep "=m" /tmp/allmod.config > /tmp/modules.config
+
+
+# prepare clean default config 
+RUN	make mrproper defconfig kvmconfig -j $NUM_JOBS
+
+# Disable debug symbols in kernel => smaller kernel binary.
+RUN	sed -i "s/^CONFIG_DEBUG_KERNEL.*/\\# CONFIG_DEBUG_KERNEL is not set/" .config
+
+COPY	files/ /
+
+# Basic Config
+RUN	sh -x /config.sh \
+	BLK_DEV_INITRD=y \
+	IKCONFIG=y \
+	IKCONFIG_PROC=y \
+	DEVTMPFS=y \
+	DEBUG_KERNEL=n \
+	DEFAULT_HOSTNAME=mcl
+
+# EFI
+RUN	sh -x /config.sh \
+	CONFIG_EFI_STUB=y \
+	CONFIG_EFIVAR_FS=y
+
+# RNG
+RUN	sh -x /config.sh \
+	HW_RANDOM_VIRTIO=y
+
+# Network Driers
+RUN	sh -x /config.sh \
+	VIRTIO=y \
+	VIRTIO_PCI=y \
+	VIRTIO_MMIO=y \
+	VIRTIO_CONSOLE=y \
+	VIRTIO_BLK=y \
+	VIRTIO_NET=y \
+	8139TOO=y \
+	8139CP=y
+
+# kernel network auto config dhcp
+RUN	sh -x /config.sh \
+	IP_PNP=y \
+	IP_PNP_DHCP=y
+
+# Docker Basics
+RUN	sh -x /config.sh \
+	NAMESPACES=y \
+	NET_NS=y \
+	PID_NS=y \
+	IPC_NS=y \
+	UTS_NS=y \
+	CGROUPS=y \
+	CGROUP_CPUACCT=y \
+	CGROUP_DEVICE=y \
+	CGROUP_FREEZER=y \
+	CGROUP_SCHED=y \
+	CPUSETS=y \
+	MEMCG=y \
+	KEYS=y \
+	VETH=y \
+	BRIDGE=y \
+	BRIDGE_NETFILTER=y \
+	NF_NAT_IPV4=y \
+	IP_NF_FILTER=y \
+	IP_NF_TARGET_MASQUERADE=y \
+	NETFILTER_XT_MATCH_ADDRTYPE=y \
+	NETFILTER_XT_MATCH_CONNTRACK=y \
+	NETFILTER_XT_MATCH_IPVS=y \
+	IP_NF_NAT=y \
+	NF_NAT=y \
+	NF_NAT_NEEDED=y \
+	POSIX_MQUEUE=y \
+	DEVPTS_MULTIPLE_INSTANCES=y
+
+# Docker Storage
+RUN	sh -x /config.sh \
+	BLK_DEV_DM=y \
+	DM_THIN_PROVISIONING=y \
+	OVERLAY_FS=y
+
+RUN	make \	
+	CFLAGS="-Os -s -fno-stack-protector -U_FORTIFY_SOURCE" \
+    	bzImage -j $NUM_JOBS
+
+#RUN	make \
+#	CFLAGS="-Os -s -fno-stack-protector -U_FORTIFY_SOURCE" \
+#	allmodconfig \
+#	modules -j $NUM_JOBS
+
+#RUN	make modules_install
+
+RUN	mkdir -p /out
+
+RUN  	cp arch/x86/boot/bzImage /out/kernel
+
+RUN     dd if=/dev/zero bs=1 count=10240 > /out/kernel.tar
 
 
 
 FROM    scratch
 
-COPY    --from=0 /mnt/ /
+COPY    --from=0 /out/ /

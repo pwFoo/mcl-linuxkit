@@ -6,10 +6,10 @@ for IMG in $(ls -1 packages/); do echo $IMG; docker build --build-arg NUM_JOBS=4
 
 generate output with linuxkit
 ```
-FORMAT=kernel+initrd
+FORMAT="-format kernel+initrd -format raw-efi"	# raw-efi -> dd to usb stick
 OUTDIR=out
 mkdir -p $OUTDIR
-docker run --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v $(which docker):$(which docker) -v $(pwd):$(pwd) --workdir $(pwd) pwfoo/linuxkit build -format $FORMAT -name mcl -dir $OUTDIR mcl.yml
+docker run --rm -ti -v /var/run/docker.sock:/var/run/docker.sock -v $(which docker):$(which docker) -v $(pwd):$(pwd) --workdir $(pwd) pwfoo/linuxkit build $FORMAT -name mcl -dir $OUTDIR mcl.yml
 ```
 
 run with qemu / kvm
